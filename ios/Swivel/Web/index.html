@@ -5283,9 +5283,30 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
       return false;
     }
     setSeen('new');
+    // In the iPhone app the title is shown alone for a moment first, as a game's title card, since
+    // the phone's own launch screen is only a plain sky. A tap goes straight on. (In a browser the
+    // page is already the title as it loads, so the first level goes up at once.)
+    if (shell.on && !window.__noTitleCard) { titleCard(); return true; }
     startCampaign(0, 0);
     guided = G;
     return true;
+  }
+  var TITLE_HOLD = 1600, carding = false;
+  function titleCard() {
+    carding = true;
+    screens.home.classList.add('waiting');
+    var done = false, timer = setTimeout(go, TITLE_HOLD);
+    function go() {
+      if (done) return;
+      done = true; carding = false; clearTimeout(timer);
+      screens.home.removeEventListener('pointerdown', go);
+      screens.home.classList.remove('waiting');
+      // the player may have got somewhere meanwhile (a link the app was handed, say)
+      if (G || current !== 'home') return;
+      startCampaign(0, 0);
+      guided = G;
+    }
+    screens.home.addEventListener('pointerdown', go);
   }
   // the account has answered, or the wait is over: now it is known who is new
   function settle() {
@@ -5351,7 +5372,7 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
   // the app hands over a link it was opened with while the game is already running
   window.__swivelOpen = function (text) { var l = shell.on ? readLink(text) : null; if (!l) return false; if (booted) arrive(l); else linked = l; return true; };
   var booted = false;
-  function bootOnce(data) { if (booted) return; booted = true; boot(data); if (!undecided) screens.home.classList.remove('waiting'); }
+  function bootOnce(data) { if (booted) return; booted = true; boot(data); if (!undecided && !carding) screens.home.classList.remove('waiting'); }
   var hot = window.claude && window.claude.hot, waiting = false;
   try { if (hot && hot.snapshot) hot.snapshot(snapshot); } catch (e) { /* ignore */ }
   try { if (hot && typeof hot.ready === 'function') { hot.ready(bootOnce); waiting = true; } } catch (e) { waiting = false; }
