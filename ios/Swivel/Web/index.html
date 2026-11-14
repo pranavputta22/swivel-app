@@ -2447,7 +2447,9 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
   // ---------- sound ----------
   // The game's sounds are the kind that play over the player's own music and keep quiet when the
   // phone's silent switch is on. Where the browser lets a page say so, it is said outright.
-  try { if (navigator.audioSession && navigator.audioSession.type !== undefined) navigator.audioSession.type = 'ambient'; } catch (e) { /* an older browser */ }
+  // (Not inside the iPhone app: there the app sets the sound to play over the player's music and also when the
+  // phone is on silent, as players expect of a game; a page-level 'ambient' here would undo that.)
+  try { if (!shell.on && navigator.audioSession && navigator.audioSession.type !== undefined) navigator.audioSession.type = 'ambient'; } catch (e) { /* an older browser */ }
   var actx = null, noiseBuf = null, lastStage = null;
   // Everything the game plays, sounds and music alike, leaves through one last stage: a single
   // level for the whole game against the other apps on the phone, then a soft ceiling. The ceiling
