@@ -1,0 +1,96 @@
+# Goes in the repository as .github/workflows/ios.yml
+#
+# Builds the iPhone app on one of GitHub's Mac machines.
+#   - Every run compiles the app for the simulator. That needs no Apple account and no secrets:
+#     it is the check that the code builds.
+#   - A run started by hand with "upload" ticked also signs the app and sends it to TestFlight.
+#     That needs three repository secrets and two repository variables (Settings > Secrets and variables > Actions):
+#       secrets:   ASC_KEY_ID      the Key ID of an App Store Connect API key (role: Admin)
+#                  ASC_ISSUER_ID   the Issuer ID shown above the list of keys
+#                  ASC_KEY_P8      the whole text of the downloaded AuthKey_XXXX.p8 file
+#       variables: BUNDLE_ID       the app's identifier, for example com.yourname.swivel
+#                  TEAM_ID         the ten-character Team ID (developer.apple.com > Membership details)
+name: iOS app
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Sign the app and send it to TestFlight
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: ['ios/**']
+  pull_request:
+    paths: ['ios/**']
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      BUNDLE_ID: ${{ vars.BUNDLE_ID || 'com.example.swivel' }}
+      TEAM_ID: ${{ vars.TEAM_ID || '' }}
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools
+        run: |
+          xcodebuild -version
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+
+      - name: The game's page is in the app
+        run: |
+          test -s ios/Swivel/Web/index.html
+          # the app must work with no connection: its page may name no web address, but for the one it
+          # writes into what a player shares (the SHARE_BASE line), which it never visits itself
+          test "$(grep -c "var SHARE_BASE = 'https://" ios/Swivel/Web/index.html)" = "1"
+          if grep -v "var SHARE_BASE = 'https://" ios/Swivel/Web/index.html | grep -Eo 'https?://[^"'"'"' )]+' | grep -v '^http://www.w3.org/' | grep -q .; then
+            echo "The page inside the app names a web address"; exit 1
+          fi
+
+      - name: Make the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Compile for the simulator
+        working-directory: ios
+        run: |
+          # the whole log is long: on a failure the errors are picked out of it
+          xcodebuild -project Swivel.xcodeproj -scheme Swivel -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build > "$RUNNER_TEMP/build.log" 2>&1 \
+            || { grep -n -E "error:|warning: unre" "$RUNNER_TEMP/build.log" | head -n 60; tail -n 30 "$RUNNER_TEMP/build.log"; exit 1; }
+          tail -n 3 "$RUNNER_TEMP/build.log"
+
+      - name: Sign and send to TestFlight
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload }}
+        working-directory: ios
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -eo pipefail
+          test -n "$TEAM_ID" || { echo "Set the TEAM_ID repository variable"; exit 1; }
+          test -n "$ASC_KEY_ID" -a -n "$ASC_ISSUER_ID" -a -n "$ASC_KEY_P8" || { echo "Set the three ASC_ secrets"; exit 1; }
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" > "$KEY"
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          xcodebuild -project Swivel.xcodeproj -scheme Swivel -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Swivel.xcarchive" \
+            "${AUTH[@]}" archive > "$RUNNER_TEMP/archive.log" 2>&1 \
+            || { grep -n "error:" "$RUNNER_TEMP/archive.log" | head -n 60; tail -n 30 "$RUNNER_TEMP/archive.log"; rm -f "$KEY"; exit 1; }
+          /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" ExportOptions.plist
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Swivel.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist -exportPath "$RUNNER_TEMP/export" \
+            "${AUTH[@]}" > "$RUNNER_TEMP/export.log" 2>&1 \
+            || { grep -n -i "error" "$RUNNER_TEMP/export.log" | head -n 60; tail -n 30 "$RUNNER_TEMP/export.log"; rm -f "$KEY"; exit 1; }
+          rm -f "$KEY"
+          tail -n 5 "$RUNNER_TEMP/export.log"
