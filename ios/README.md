@@ -16,7 +16,7 @@ the workspace it was written in. The first run of the workflow on GitHub is the 
 | `Swivel/Reminder.swift` | The daily reminder: local notifications, two weeks at a time, only if the player asks |
 | `Swivel/Review.swift` | Picks a good moment to ask for a rating, and opens the App Store's review page for the Rate button |
 | `Swivel/Web/` | The game: `dist/app/` from the web project, copied here by `node tools/build.js` |
-| `Swivel/Info.plist` | Name, orientations, launch colour, "no encryption" answer, the `swivel://` link scheme, the one scene, `SwivelAppStoreID` (empty until the app has a store page) |
+| `Swivel/Info.plist` | Name, orientations, launch colour, "no encryption" answer, the `swivel://` link scheme, the one scene, `SwivelAppStoreID` (6834924690) |
 | `Swivel/Swivel.entitlements` | iCloud key-value storage, Game Center |
 | `Swivel/PrivacyInfo.xcprivacy` | Apple's privacy manifest: no tracking, nothing collected, UserDefaults for the app's own use |
 | `Swivel/Assets.xcassets` | The 1024 icon and the launch colour |
