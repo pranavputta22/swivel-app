@@ -92,9 +92,12 @@ jobs:
           test -n "$ASC_KEY_ID" -a -n "$ASC_ISSUER_ID" -a -n "$ASC_KEY_P8" || { echo "Set the three ASC_ secrets"; exit 1; }
           KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
           printf '%s' "$ASC_KEY_P8" > "$KEY"
+          # The archive is signed for the App Store straight away ("Apple Distribution"): a development profile,
+          # which automatic signing would try first, needs a registered test device, and the team has none.
           AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
           xcodebuild -project Swivel.xcodeproj -scheme Swivel -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Swivel.xcarchive" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             "${AUTH[@]}" archive > "$RUNNER_TEMP/archive.log" 2>&1 \
             || { grep -n "error:" "$RUNNER_TEMP/archive.log" | head -n 60; tail -n 30 "$RUNNER_TEMP/archive.log"; rm -f "$KEY"; exit 1; }
           /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" ExportOptions.plist
