@@ -38,11 +38,20 @@ jobs:
       TEAM_ID: ${{ vars.TEAM_ID || '' }}
       BUILD_NUMBER: ${{ github.run_number }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      # The newest Xcode 27 on the machine: apps built with the iOS 27.1 tools fill the whole screen of iPhone Duo
+      # (older builds run there in a box). Falls back to the machine's default if no Xcode 27 is installed.
+      - name: Pick Xcode
+        run: |
+          X=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | grep -v -i beta | sort -V | tail -n 1)
+          if [ -n "$X" ]; then sudo xcode-select -s "$X/Contents/Developer"; else echo "No Xcode 27 here: using the default"; fi
+          ls -d /Applications/Xcode_*.app
 
       - name: Tools
         run: |
           xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
 
       - name: The game's page is in the app
