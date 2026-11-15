@@ -247,6 +247,23 @@ h1, h2, h3, p { margin: 0; }
 .marquee .ih { position: relative; display: inline-block; letter-spacing: 0; margin-right: -.03em; }
 .marquee .ih svg { position: absolute; left: 50%; top: -.035em; width: .3em; height: .3em; margin-left: -.15em; fill: var(--paint); overflow: visible; }
 .marquee p { margin-top: 8px; font-size: 17px; color: var(--text-2); }
+/* the title card the iPhone app opens with: the title alone, centred, while a rocket bursts behind it */
+#titlecard { position: absolute; inset: 0; z-index: 1000; overflow: hidden; background: #141838; transition: opacity .3s ease-out; }
+#titlecard.out { opacity: 0; pointer-events: none; }
+#titlecard .tc-title { position: absolute; left: 0; right: 0; top: 40%; transform: translateY(-50%); margin: 0; padding: 0 16px; text-align: center; z-index: 40; }
+#titlecard .tc-title h1 { font-size: clamp(76px, 26vw, 120px); }
+#titlecard .tc-title > * { opacity: 0; }
+#titlecard.shown .tc-title h1 { animation: tc-pop .42s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes tc-pop { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: none; } }
+#titlecard .tc-scene { z-index: 1; }
+#titlecard .tc-rocket { position: absolute; width: 66px; height: 66px; margin: -33px 0 0 -33px; z-index: 30; --cell: 66px; animation: tc-rise var(--dur) cubic-bezier(.3, .6, .5, 1) both; }
+#titlecard .tc-rocket .piece { width: 100%; height: 100%; }
+#titlecard .tc-trail { position: absolute; width: 6px; margin-left: -3px; height: var(--rise); border-radius: 3px; z-index: 29;
+  background: linear-gradient(180deg, rgba(255, 233, 168, .9), rgba(255, 181, 46, .35) 40%, rgba(255, 181, 46, 0));
+  transform-origin: 50% 100%;
+  animation: tc-trail var(--dur) cubic-bezier(.3, .6, .5, 1) both, trail-fade .35s ease-out var(--dur) forwards; }
+@keyframes tc-rise { from { transform: translateY(var(--rise)); } to { transform: none; } }
+@keyframes tc-trail { from { transform: scaleY(0); } to { transform: none; } }
 .menu { margin-top: clamp(12px, 3vh, 28px); display: flex; flex-direction: column; gap: 10px; }
 .dest {
   display: grid; grid-template-columns: 46px 1fr auto; align-items: center; column-gap: 14px;
@@ -2447,9 +2464,8 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
   // ---------- sound ----------
   // The game's sounds are the kind that play over the player's own music and keep quiet when the
   // phone's silent switch is on. Where the browser lets a page say so, it is said outright.
-  // (Not inside the iPhone app: there the app sets the sound to play over the player's music and also when the
-  // phone is on silent, as players expect of a game; a page-level 'ambient' here would undo that.)
-  try { if (!shell.on && navigator.audioSession && navigator.audioSession.type !== undefined) navigator.audioSession.type = 'ambient'; } catch (e) { /* an older browser */ }
+  // (Inside the iPhone app the app sets the same thing, and the page saying it too changes nothing.)
+  try { if (navigator.audioSession && navigator.audioSession.type !== undefined) navigator.audioSession.type = 'ambient'; } catch (e) { /* an older browser */ }
   var actx = null, noiseBuf = null, lastStage = null;
   // Everything the game plays, sounds and music alike, leaves through one last stage: a single
   // level for the whole game against the other apps on the phone, then a soft ceiling. The ceiling
@@ -5283,30 +5299,62 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
       return false;
     }
     setSeen('new');
-    // In the iPhone app the title is shown alone for a moment first, as a game's title card, since
-    // the phone's own launch screen is only a plain sky. A tap goes straight on. (In a browser the
-    // page is already the title as it loads, so the first level goes up at once.)
-    if (shell.on && !window.__noTitleCard) { titleCard(); return true; }
     startCampaign(0, 0);
     guided = G;
     return true;
   }
-  var TITLE_HOLD = 1600, carding = false;
+  // ---------- the title card (iPhone app only) ----------
+  // Each time the app starts, the title stands alone for a moment: one rocket goes up from the bottom
+  // and bursts behind it. Coming back from another app shows nothing, since the page is still there then.
+  // The game opens underneath meanwhile (the menu, the level the player was in, or the first level),
+  // so nothing waits on the card; it only fades away. In a browser the page is the title as it loads.
+  var TC_FLIGHT = 620, TC_HOLD = 1500, TC_FADE = 300;
   function titleCard() {
-    carding = true;
-    screens.home.classList.add('waiting');
-    var done = false, timer = setTimeout(go, TITLE_HOLD);
-    function go() {
-      if (done) return;
-      done = true; carding = false; clearTimeout(timer);
-      screens.home.removeEventListener('pointerdown', go);
-      screens.home.classList.remove('waiting');
-      // the player may have got somewhere meanwhile (a link the app was handed, say)
-      if (G || current !== 'home') return;
-      startCampaign(0, 0);
-      guided = G;
+    if (!shell.on || window.__noTitleCard) return null;
+    var app = $('#app'), el = document.createElement('div');
+    el.id = 'titlecard';
+    el.setAttribute('aria-hidden', 'true');
+    try { el.style.background = getComputedStyle(app).backgroundImage; } catch (e) { /* the card's own colour stands */ }
+    // (the title only: the line under it is read on the menu, where there is time to read it)
+    el.innerHTML = '<div class="marquee tc-title">' + $('#home .marquee h1').outerHTML + '</div>';
+    var scene = $('#scene').cloneNode(true);
+    scene.removeAttribute('id'); scene.hidden = false; scene.classList.add('tc-scene');
+    el.appendChild(scene);
+    app.appendChild(el);
+    var head = el.querySelector('h1').getBoundingClientRect(), box = el.getBoundingClientRect();
+    var cx = head.left + head.width / 2 - box.left, cy = head.top + head.height / 2 - box.top;
+    function leave(after) {
+      setTimeout(function () { el.classList.add('out'); setTimeout(function () { el.remove(); }, TC_FADE + 50); }, after);
     }
-    screens.home.addEventListener('pointerdown', go);
+    if (reduceMotion) { el.classList.add('shown'); leave(900); return el; }
+    // the rocket: one of the game's own, lit, flying straight up to the middle of the title
+    var rk = document.createElement('span'), trail = document.createElement('i');
+    rk.className = 'tc-rocket'; trail.className = 'tc-trail';
+    rk.appendChild(staticPiece(4, 0));
+    rk.firstChild.classList.add('lit');
+    var rise = box.height + 60 - cy;
+    rk.style.left = cx + 'px'; rk.style.top = cy + 'px';
+    trail.style.left = cx + 'px'; trail.style.top = cy + 'px';
+    rk.style.setProperty('--rise', rise + 'px'); trail.style.setProperty('--rise', rise + 'px');
+    rk.style.setProperty('--dur', TC_FLIGHT + 'ms'); trail.style.setProperty('--dur', TC_FLIGHT + 'ms');
+    el.appendChild(trail); el.appendChild(rk);
+    // its sound: the launch going up, then the big shell and two smaller ones (the app lets the page
+    // play with no touch first; with Sound off in Settings these stay quiet like every other sound)
+    unlockAudio();
+    whoosh(TC_FLIGHT / 1000, 380, 2400, 0.2);
+    tone(inKey(520), 0.12, 'triangle', 0.06, 0, inKey(520) * 1.5);
+    setTimeout(function () {
+      snd.boom();
+      setTimeout(snd.pop, 170);
+      setTimeout(snd.pop, 320);
+      rk.remove();
+      el.classList.add('shown');
+      burstAt(el, cx, cy, '#FFC533', true).style.setProperty('--R', Math.round(Math.min(box.width * 0.62, 260)) + 'px');
+      setTimeout(function () { burstAt(el, cx - Math.min(head.width * 0.34, box.width * 0.3), cy - head.height * 0.75, '#FF57A4', true); }, 170);
+      setTimeout(function () { burstAt(el, cx + Math.min(head.width * 0.36, box.width * 0.3), cy - head.height * 0.5, '#3F90FF', true); }, 320);
+    }, TC_FLIGHT);
+    leave(TC_HOLD);
+    return el;
   }
   // the account has answered, or the wait is over: now it is known who is new
   function settle() {
@@ -5363,6 +5411,7 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
   setScene(homeScene());
   renderHome();
   startAmbient();
+  titleCard();
   // Someone who may be new is not shown a menu they are about to be taken past (or, inside Claude,
   // one that is about to change once the account answers): the title stands alone until it is known.
   if (!seen && blankSlate()) screens.home.classList.add('waiting');
@@ -5372,7 +5421,7 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
   // the app hands over a link it was opened with while the game is already running
   window.__swivelOpen = function (text) { var l = shell.on ? readLink(text) : null; if (!l) return false; if (booted) arrive(l); else linked = l; return true; };
   var booted = false;
-  function bootOnce(data) { if (booted) return; booted = true; boot(data); if (!undecided && !carding) screens.home.classList.remove('waiting'); }
+  function bootOnce(data) { if (booted) return; booted = true; boot(data); if (!undecided) screens.home.classList.remove('waiting'); }
   var hot = window.claude && window.claude.hot, waiting = false;
   try { if (hot && hot.snapshot) hot.snapshot(snapshot); } catch (e) { /* ignore */ }
   try { if (hot && typeof hot.ready === 'function') { hot.ready(bootOnce); waiting = true; } } catch (e) { waiting = false; }
