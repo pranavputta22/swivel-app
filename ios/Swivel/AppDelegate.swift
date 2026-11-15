@@ -17,10 +17,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // The game's sounds play over the player's own music (mixed, never stopping it) and also when the phone is
-        // on silent, as players of puzzle games expect. Without a background audio mode, nothing plays once the
-        // app is in the background.
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        // The game's sounds play over the player's own music (mixed, never stopping it), as Apple advises for games.
+        // Like other games they follow the silent switch: on silent the speaker stays quiet, while headphones and
+        // AirPods still play. Without a background audio mode, nothing plays once the app is in the background.
+        try? AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: [])
         try? AVAudioSession.sharedInstance().setActive(true)
         game = GameViewController()
         return true
