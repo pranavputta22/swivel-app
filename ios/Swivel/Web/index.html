@@ -42,6 +42,20 @@
 })();
 </script>
 <script>
+/* In the iPhone app the page opens on a title card. Until the card is up, only the night sky shows:
+   without this the menu could be painted for an instant first, its icons flashing at the left. */
+(function () {
+  try {
+    var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.swivel;
+    if (h && !window.__noTitleCard) {
+      document.documentElement.className += ' tc-pending';
+      // (a safety: should the game never start, the page is not left blank)
+      setTimeout(function () { document.documentElement.classList.remove('tc-pending'); }, 4000);
+    }
+  } catch (e) { /* the page shows as usual */ }
+})();
+</script>
+<script>
 /* The safety net. If the game's own code ever fails, the player is told, nothing they have earned
    is lost, and a short note of what happened is kept on the device so it can be sent to whoever
    looks after the game. It is set up before everything else, so a failure while starting is caught too. */
@@ -248,6 +262,7 @@ h1, h2, h3, p { margin: 0; }
 .marquee .ih svg { position: absolute; left: 50%; top: -.035em; width: .3em; height: .3em; margin-left: -.15em; fill: var(--paint); overflow: visible; }
 .marquee p { margin-top: 8px; font-size: 17px; color: var(--text-2); }
 /* the title card the iPhone app opens with: the title alone, centred, while a rocket bursts behind it */
+.tc-pending #app > :not(#titlecard) { visibility: hidden; }
 #titlecard { position: absolute; inset: 0; z-index: 1000; overflow: hidden; background: #141838; transition: opacity .3s ease-out; }
 #titlecard.out { opacity: 0; pointer-events: none; }
 #titlecard .tc-title { position: absolute; left: 0; right: 0; top: 40%; transform: translateY(-50%); margin: 0; padding: 0 16px; text-align: center; z-index: 40; }
@@ -5310,7 +5325,9 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
   // so nothing waits on the card; it only fades away. In a browser the page is the title as it loads.
   var TC_FLIGHT = 620, TC_HOLD = 1500, TC_FADE = 300;
   function titleCard() {
-    if (!shell.on || window.__noTitleCard) return null;
+    // (the page's head hid everything but the sky until now; the card or the game is shown in its place)
+    var html = document.documentElement;
+    if (!shell.on || window.__noTitleCard) { html.classList.remove('tc-pending'); return null; }
     var app = $('#app'), el = document.createElement('div');
     el.id = 'titlecard';
     el.setAttribute('aria-hidden', 'true');
@@ -5321,6 +5338,7 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
     scene.removeAttribute('id'); scene.hidden = false; scene.classList.add('tc-scene');
     el.appendChild(scene);
     app.appendChild(el);
+    html.classList.remove('tc-pending');
     var head = el.querySelector('h1').getBoundingClientRect(), box = el.getBoundingClientRect();
     var cx = head.left + head.width / 2 - box.left, cy = head.top + head.height / 2 - box.top;
     function leave(after) {
