@@ -50,7 +50,7 @@
     if (h && !window.__noTitleCard) {
       document.documentElement.className += ' tc-pending';
       // (a safety: should the game never start, the page is not left blank)
-      setTimeout(function () { document.documentElement.classList.remove('tc-pending'); }, 4000);
+      setTimeout(function () { document.documentElement.classList.remove('tc-pending'); }, 5000);
     }
   } catch (e) { /* the page shows as usual */ }
 })();
@@ -5338,11 +5338,13 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
     scene.removeAttribute('id'); scene.hidden = false; scene.classList.add('tc-scene');
     el.appendChild(scene);
     app.appendChild(el);
-    html.classList.remove('tc-pending');
+    // (everything else stays hidden, not just covered, until the card starts to fade: on the iPhone
+    // the menu's animated icons can be drawn on a layer of their own, above the card)
+    if (html.className.indexOf('tc-pending') < 0) html.className += ' tc-pending';
     var head = el.querySelector('h1').getBoundingClientRect(), box = el.getBoundingClientRect();
     var cx = head.left + head.width / 2 - box.left, cy = head.top + head.height / 2 - box.top;
     function leave(after) {
-      setTimeout(function () { el.classList.add('out'); setTimeout(function () { el.remove(); }, TC_FADE + 50); }, after);
+      setTimeout(function () { html.classList.remove('tc-pending'); el.classList.add('out'); setTimeout(function () { el.remove(); }, TC_FADE + 50); }, after);
     }
     if (reduceMotion) { el.classList.add('shown'); leave(900); return el; }
     // the rocket: one of the game's own, lit, flying straight up to the middle of the title
