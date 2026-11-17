@@ -254,7 +254,7 @@ h1, h2, h3, p { margin: 0; }
 /* ---------- home ---------- */
 /* The title stands on the sky. The menu is five plates; the one to press first is gold. */
 #home { justify-content: flex-start; }
-.marquee { margin-top: clamp(0px, 3vh, 26px); padding: 0 6px; }
+.marquee { margin-top: clamp(0px, 3vh, 26px); padding: 0 6px; text-align: center; }
 .marquee h1 { font-size: clamp(64px, 21vw, 96px); font-weight: 900; line-height: .9; letter-spacing: -.03em; color: #FFF3D6; }
 /* The star stands on the stem of the i. The box round the i is the letter's own width: the title's tightened
    spacing would otherwise take a sliver off its right side, and the star, centred on the box, would sit left of the stem. */
@@ -3475,7 +3475,9 @@ if (typeof module === 'object' && module.exports) module.exports = SWIVEL_PICTUR
       b.setAttribute('aria-disabled', open ? 'false' : 'true');
       if (!open) $('#info-' + id).textContent = 'After ' + left + (left === 1 ? ' more level' : ' more levels');
     });
-    $('#kerb').textContent = TRIAL ? 'Trial copy. Your real game is untouched.' : 'No lives. No timer. Take back any move.';
+    // (the line under the menu is only for the trial copy: the no-lives promise is said on the store page, not to someone already playing)
+    $('#kerb').textContent = TRIAL ? 'Trial copy. Your real game is untouched.' : '';
+    $('#kerb').hidden = !TRIAL;
   }
   function currentStreak() {
     var d = save.daily, t = today();
