@@ -10,6 +10,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
     private let gameCenter = GameCenter()
     private let reminder = Reminder()
     private let review = Review()
+    private let store = Store()
     private var shown = false
     private var pageReady = false
     private var pendingLink: String?
@@ -70,6 +71,8 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         keep.start()
         gameCenter.start(host: self)
         review.noteDay()
+        store.onChange = { [weak self] json in self?.call("__swivelFull", with: json) }
+        store.start()
         // The game's music gives way to the player's own: the phone says when that starts and stops.
         let center = NotificationCenter.default
         center.addObserver(self, selector: #selector(otherAudioChanged), name: AVAudioSession.silenceSecondaryAudioHintNotification, object: nil)
@@ -90,7 +93,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         // What the app has kept is handed to the page before the page's own script runs. It is made
         // afresh for every load, so a page put back after the system ended it gets today's copies,
         // and a link the app was started with is followed once and not again.
-        var extra: [String: Any] = ["reminder": reminder.remembered, "rate": review.canRate]
+        var extra: [String: Any] = ["reminder": reminder.remembered, "rate": review.canRate, "full": store.handover]
         if let link = pendingLink {
             extra["open"] = link
             pendingLink = nil
@@ -137,6 +140,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     @objc private func becameActive() {
         sendOtherAudio()
+        Task { await store.check() }
         review.noteDay()
         // back from the phone's Settings, perhaps with notifications now allowed
         reminder.recheck { [weak self] state in self?.send(reminder: state) }
@@ -162,8 +166,10 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     // MARK: sharing
 
-    private func share(text: String?, link: String?) {
+    private func share(text: String?, link: String?, image: String? = nil) {
         var items: [Any] = []
+        // a picture of the result (the page draws it), sent with the words
+        if let image = image, image.count < 8_000_000, let data = Data(base64Encoded: image), let picture = UIImage(data: data) { items.append(picture) }
         if let text = text, !text.isEmpty { items.append(text) }
         if let link = link, let url = URL(string: link) { items.append(url) }
         guard !items.isEmpty, presentedViewController == nil else { return }
@@ -207,7 +213,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         case "copy":
             if let text = body["data"] as? String { UIPasteboard.general.string = text }
         case "share":
-            share(text: data?["text"] as? String, link: data?["url"] as? String)
+            share(text: data?["text"] as? String, link: data?["url"] as? String, image: data?["image"] as? String)
         case "game":
             gameCenter.report(feats: wholeNumbers(data?["feats"]), scores: wholeNumbers(data?["scores"]))
         case "gamecenter":
@@ -216,6 +222,10 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
             if let kind = data?["kind"] as? String { review.moment(kind, in: view.window?.windowScene) }
         case "rate":
             review.rate()
+        case "buy":
+            Task { await store.buy(in: view.window?.windowScene) }
+        case "restore":
+            Task { await store.restore() }
         case "remind":
             if let plan = data { reminder.apply(plan) { [weak self] state in self?.send(reminder: state) } }
         default:
