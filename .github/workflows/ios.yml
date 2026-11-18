@@ -59,9 +59,11 @@ jobs:
         run: |
           test -s ios/Swivel/Web/index.html
           # the app must work with no connection: its page may name no web address, but for the one it
-          # writes into what a player shares (the SHARE_BASE line), which it never visits itself
+          # writes into what a player shares (the SHARE_BASE line), which it never visits itself, and the
+          # App Store page the browser versions point to (STORE_URL; the app sells through StoreKit)
           test "$(grep -c "var SHARE_BASE = 'https://" ios/Swivel/Web/index.html)" = "1"
-          if grep -v "var SHARE_BASE = 'https://" ios/Swivel/Web/index.html | grep -Eo 'https?://[^"'"'"' )]+' | grep -v '^http://www.w3.org/' | grep -q .; then
+          test "$(grep -c "var STORE_URL = 'https://apps.apple.com/app/id" ios/Swivel/Web/index.html)" = "1"
+          if grep -v "var SHARE_BASE = 'https://" ios/Swivel/Web/index.html | grep -v "var STORE_URL = 'https://apps.apple.com/app/id" | grep -Eo 'https?://[^"'"'"' )]+' | grep -v '^http://www.w3.org/' | grep -q .; then
             echo "The page inside the app names a web address"; exit 1
           fi
 
